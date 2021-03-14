@@ -244,7 +244,7 @@ def do_SSRF(session, method, host, ssrf_url, ssrf_data={}, ssrf_cookies={}, ssrf
         return session.post(magic_url, json=ssrf_data, cookies=ssrf_cookies, headers=ssrf_headers, verify=False) if is_json else session.post(magic_url, data=ssrf_data, cookies=ssrf_cookies, headers=ssrf_headers, verify=False)
 
 def print_exch_error(response):
-    if 'Error' and 'Message' in response.text:
+    if 'Error' in response.text and 'Message' in response.text:
             if "xml" in response.headers["Content-Type"]:
                 errors = re.findall(r'<Message>(.+?)</Message>', response.text)
                 for err in errors:
