@@ -172,7 +172,7 @@ def get_identity_info(session, host, CN):
         loggenAs = re.findall(r'Logon user:</span> <span class=\'diagTxt\'>(.+?)</span>', response.text)
         RBAC_roles = re.findall(r'RBAC roles:</span> <span class=\'diagTxt\'>(.+?)</span>', response.text)
         if len(loggenAs) == 0 or len(RBAC_roles) == 0:
-            print("[WARNING] error while getting our new identity infos: server returned 200OK but no data found")
+            print("[WARNING] error while getting our new identity infos: server returned 200 OK but no data found")
             print_exch_error(response)
             print("[WARNING] continuing the attack anyway!")
     else:
