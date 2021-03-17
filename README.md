@@ -7,7 +7,7 @@ user@host:~$ python3 -m pip install impacket
 ```
 then clone the exploit repo, and enter the exploit directory:
 ```
-user@host:~$ https://github.com/hakivvi/proxylogon.git && cd proxylogon
+user@host:~$ git clone https://github.com/hakivvi/proxylogon.git && cd proxylogon
 ```
 run the exploit:
 ```
