@@ -326,6 +326,7 @@ def ntlm_exposed(session, url):
     if "NTLM" in response.headers["WWW-Authenticate"] and "Negotiate" in response.headers["WWW-Authenticate"]:
             return True
     else:
+            del session.headers["Authorization"]
             return False
 
 # parse_version() is slightly modified, used to parse the version from the challenge, from https://github.com/b17zr/ntlm_challenger/blob/master/ntlm_challenger.py
