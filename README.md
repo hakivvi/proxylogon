@@ -13,9 +13,7 @@ run the exploit:
 ```
 user@host:~$ python3 proxylogon.py http://mail.corp.com email@corp.com
 ```
-PoC:
 
-[![PoC](/PoC.jpg)](https://twitter.com/hakivvi/status/1370918015945084928)
 
 
 
