@@ -19,4 +19,4 @@ PoC:
 
 
 
-**this repo will remain private until DEVCORE or Microsorft releases the exploit details to the public** 
+~~**this repo will remain private until DEVCORE or Microsorft releases the exploit details to the public**~~ **i think they won't :P**
