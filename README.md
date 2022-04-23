@@ -13,8 +13,3 @@ run the exploit:
 ```
 user@host:~$ python3 proxylogon.py http://mail.corp.com email@corp.com
 ```
-
-
-
-
-~~**this repo will remain private until DEVCORE or Microsorft releases the exploit details to the public**~~ **i think they won't :P**
